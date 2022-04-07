@@ -3,11 +3,8 @@ import json
 import time
 from functools import reduce
 import operator
-
-def lab3():
-    return ["cs19%.3dbs" %i for i in range(90,120)]
-
-machines = lab3()
+import os
+from urllib.parse import quote_plus
 
 def free_row(machine):
     users_string = ""
@@ -43,38 +40,33 @@ def offline_row(machine):
 <td>-</td>\
 <td>-</td></tr>\n' % machine["hostname"]
 
-def build_page(statuses):
-    page = ""
-    with open("/home/cosc/guest/jmm403/Projects/monitor/head.html", "r") as head:
-        page += head.read()
-
-
-    for hostname in machines:
-        #machine = get_machine(hostname)
+def build_table(lab, statuses):
+    table_string = ""
+    for hostname in lab["machines"]:
         machine = statuses[hostname]
-        #print(machine)
-        machine["hostname"]= hostname
+        machine["hostname"] = hostname
 
         activity = 0
         if len(machine["users_details"]) > 0:
             activity = reduce(operator.add,  map(lambda e: 0 if e["idle"] else 1, machine["users_details"]))
 
         if machine["online"] and activity == 0:
-            page += free_row(machine)
+            table_string += free_row(machine)
         elif machine["online"]:
-            page += inuse_row(machine)
+            table_string += inuse_row(machine)
         else:
-            page += offline_row(machine)
+            table_string += offline_row(machine)
 
-    with open("/home/cosc/guest/jmm403/Projects/monitor/tail.html", "r") as tail:
-        page += tail.read()
+    with open("/home/cosc/guest/jmm403/Projects/monitor/table.template", "r") as table_template:
+        return table_template.read().format(
+            lab_name=lab["name"],
+            json_filename=quote_plus(lab["name"]+".json"),
+            table_rows=table_string)
 
-    with open("/home/cosc/guest/jmm403/Projects/monitor/index.html", "w") as index:
-        index.write(page)
 
-def build_json(status):
+def build_json(status, filename):
     status = {"machines": status, "unix_time": time.time()}
-    with open("/home/cosc/guest/jmm403/Projects/monitor/status.json",'w') as status_file:
+    with open(filename,'w') as status_file:
         status_file.write(json.dumps(status, sort_keys=True, indent=4))
 
 
@@ -86,7 +78,7 @@ def get_machine(host):
         stdout = subp.stdout.decode("utf8").strip()
         return json.loads(stdout)
 
-def get_machines_statuses():
+def get_machines_statuses(machines):
     statuses = dict()
     for hostname in machines:
         status = get_machine(hostname)
@@ -94,12 +86,43 @@ def get_machines_statuses():
     return statuses
 
 
-def push():
-    subprocess.run(["scp","/home/cosc/guest/jmm403/Projects/monitor/index.html","root@joshm.cc:/var/www/labs.joshm.cc/index.html"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    subprocess.run(["scp","/home/cosc/guest/jmm403/Projects/monitor/status.json","root@joshm.cc:/var/www/labs.joshm.cc/status.json"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+def push(filename, remote, ):
+    subprocess.run(["scp",
+        filename,
+        remote+os.path.basename(filename)],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-statuses = get_machines_statuses()
-build_json(statuses)
-build_page(statuses)
-push()
+if __name__ == "__main__":
+
+    working_dir = os.path.dirname(__file__)
+    print(working_dir)
+    with open(os.path.join(working_dir,"config.json")) as config_file:
+        config = json.loads(config_file.read())
+
+    tables = ""
+    for lab in config["labs"]:
+        lab_name = lab["name"]
+        lab_name_save = quote_plus(lab_name)
+        json_filename = os.path.join(working_dir, f"{lab_name_save}.json")
+
+        statuses = get_machines_statuses(lab["machines"])
+        build_json(statuses, json_filename)
+        push(json_filename, config["deployment"]["location"])
+        tables += build_table(lab,statuses)
+
+
+    with open(os.path.join(working_dir,"page.template"), "r") as page_template:
+        page = page_template.read().format(
+            lab_name=lab["name"],
+            json_filename=lab["name"]+".json",
+            tables=tables)
+
+    with open(os.path.join(working_dir,"index.html"), "w") as page_file:
+        page_file.write(page)
+    push(os.path.join(working_dir,"index.html"), config["deployment"]["location"])
+
+    #statuses = get_machines_statuses()
+    #
+    #build_page(statuses)
+    #push()
 

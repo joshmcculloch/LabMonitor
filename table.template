@@ -1,0 +1,15 @@
+    <h1>{lab_name} Machines</h1>
+    <a href="{json_filename}">JSON Format</a>
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th scope="col">Machine Name</th>
+          <th scope="col">Users</th>
+          <th scope="col">CPU%</th>
+          <th scope="col">GPU%</th>
+        </tr>
+        {table_rows}
+      </thead>
+      <tbody>
+    </tbody>
+    </table>
