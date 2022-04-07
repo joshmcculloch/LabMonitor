@@ -95,7 +95,6 @@ def push(filename, remote, ):
 if __name__ == "__main__":
 
     working_dir = os.path.dirname(__file__)
-    print(working_dir)
     with open(os.path.join(working_dir,"config.json")) as config_file:
         config = json.loads(config_file.read())
 
@@ -120,9 +119,4 @@ if __name__ == "__main__":
     with open(os.path.join(working_dir,"index.html"), "w") as page_file:
         page_file.write(page)
     push(os.path.join(working_dir,"index.html"), config["deployment"]["location"])
-
-    #statuses = get_machines_statuses()
-    #
-    #build_page(statuses)
-    #push()
 
